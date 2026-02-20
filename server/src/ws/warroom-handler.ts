@@ -9,8 +9,7 @@ import {
   type WarRoomMessage,
 } from "../lib/warroom.js";
 
-const NODE22 = "/home/benoit/.nvm/versions/node/v22.22.0/bin/node";
-const OPENCLAW = "/usr/local/bin/openclaw";
+const OPENCLAW_WRAPPER = "/home/benoit/clawboard/run-openclaw.sh";
 
 const clients = new Set<WsWebSocket>();
 
@@ -30,14 +29,8 @@ async function sendToAgent(agentId: string, content: string, userMsgId: string) 
   broadcast({ type: "typing", agentId, name: agent.name, emoji: agent.emoji });
 
   const sessionId = `warroom-${agentId}`;
-  const args = [OPENCLAW, "agent", "--message", content, "--json", "--session-id", sessionId, "--agent", agentId];
-  const cleanEnv: Record<string, string> = {
-    HOME: "/home/benoit",
-    PATH: "/home/benoit/.nvm/versions/node/v22.22.0/bin:/usr/local/bin:/usr/bin:/bin",
-  };
-  console.log(`[warroom] spawning: ${NODE22} ${args.join(" ")}`);
-  console.log(`[warroom] env HOME=${cleanEnv.HOME}`);
-  const proc = spawn(NODE22, args, { env: cleanEnv, timeout: 120_000 });
+  const args = ["agent", "--message", content, "--json", "--session-id", sessionId, "--agent", agentId];
+  const proc = spawn(OPENCLAW_WRAPPER, args, { timeout: 120_000 });
 
   let stdout = "";
   let stderr = "";
