@@ -30,7 +30,7 @@ async function sendToAgent(agentId: string, content: string, userMsgId: string) 
 
   const sessionId = `warroom-${agentId}`;
   const escaped = content.replace(/'/g, "'\\''");
-  const cmd = `export HOME=/home/benoit && unset OPENCLAW_HOME && export NVM_DIR="$HOME/.nvm" && . "$NVM_DIR/nvm.sh" && nvm use 22 --silent && openclaw agent --message '${escaped}' --json --session-id '${sessionId}' --agent '${agentId}'`;
+  const cmd = `export HOME=/home/benoit && unset OPENCLAW_HOME && export NVM_DIR="$HOME/.nvm" && . "$NVM_DIR/nvm.sh" && nvm use 22 --silent && echo "DEBUG_HOME=$HOME OPENCLAW_HOME=$OPENCLAW_HOME" >&2 && openclaw agent --message '${escaped}' --json --session-id '${sessionId}' --agent '${agentId}'`;
   const proc = spawn(SHELL, ["-c", cmd], { timeout: 120_000 });
 
   let stdout = "";
