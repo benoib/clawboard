@@ -35,6 +35,8 @@ async function sendToAgent(agentId: string, content: string, userMsgId: string) 
     HOME: "/home/benoit",
     PATH: "/home/benoit/.nvm/versions/node/v22.22.0/bin:/usr/local/bin:/usr/bin:/bin",
   };
+  console.log(`[warroom] spawning: ${NODE22} ${args.join(" ")}`);
+  console.log(`[warroom] env HOME=${cleanEnv.HOME}`);
   const proc = spawn(NODE22, args, { env: cleanEnv, timeout: 120_000 });
 
   let stdout = "";
