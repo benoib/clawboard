@@ -29,8 +29,8 @@ async function sendToAgent(agentId: string, content: string, userMsgId: string) 
   const replyId = crypto.randomUUID();
   broadcast({ type: "typing", agentId, name: agent.name, emoji: agent.emoji });
 
-  const args = ["agent", "--message", content, "--json"];
-  if (agentId !== "main") args.push("--agent", agentId);
+  const sessionId = `warroom-${agentId}`;
+  const args = ["agent", "--message", content, "--json", "--session-id", sessionId, "--agent", agentId];
 
   const proc = spawn(NVM_NODE, [OPENCLAW_BIN, ...args], {
     env: { ...process.env, PATH: `${process.env.HOME}/.nvm/versions/node/v22.22.0/bin:${process.env.PATH}` },
