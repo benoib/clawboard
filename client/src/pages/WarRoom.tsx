@@ -3,13 +3,11 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { WarRoomMessage, WarRoomAgent } from "@/lib/types";
 
-type StreamingState = Record<string, string>; // agentId -> accumulated text
-type TypingState = Record<string, { name: string; emoji: string }>; // agentId -> agent info
+type TypingState = Record<string, { name: string; emoji: string }>;
 
 export default function WarRoom() {
   const [messages, setMessages] = useState<WarRoomMessage[]>([]);
   const [agents, setAgents] = useState<WarRoomAgent[]>([]);
-  const [streaming, setStreaming] = useState<StreamingState>({});
   const [typing, setTyping] = useState<TypingState>({});
   const [input, setInput] = useState("");
   const [connected, setConnected] = useState(false);
@@ -39,69 +37,30 @@ export default function WarRoom() {
 
     ws.onmessage = (e) => {
       const data = JSON.parse(e.data);
-
       switch (data.type) {
         case "history":
           setMessages(data.messages);
           setTimeout(scrollToBottom, 100);
           break;
-
         case "agents":
           setAgents(data.agents);
           break;
-
         case "message":
           setMessages((prev) => [...prev, data.message]);
           if (data.message.sender.type === "agent") {
-            setStreaming((s) => {
-              const next = { ...s };
-              delete next[data.message.sender.id];
-              return next;
-            });
-            setTyping((t) => {
-              const next = { ...t };
-              delete next[data.message.sender.id];
-              return next;
-            });
+            setTyping((t) => { const n = { ...t }; delete n[data.message.sender.id]; return n; });
           }
           scrollToBottom();
           break;
-
         case "typing":
-          setTyping((t) => ({
-            ...t,
-            [data.agentId]: { name: data.name, emoji: data.emoji },
-          }));
+          setTyping((t) => ({ ...t, [data.agentId]: { name: data.name, emoji: data.emoji } }));
           scrollToBottom();
           break;
-
-        case "chunk":
-          setStreaming((s) => ({
-            ...s,
-            [data.agentId]: (s[data.agentId] || "") + data.content,
-          }));
-          scrollToBottom();
-          break;
-
         case "done":
-          setStreaming((s) => {
-            const next = { ...s };
-            delete next[data.agentId];
-            return next;
-          });
-          setTyping((t) => {
-            const next = { ...t };
-            delete next[data.agentId];
-            return next;
-          });
+          setTyping((t) => { const n = { ...t }; delete n[data.agentId]; return n; });
           break;
-
         case "error":
-          setTyping((t) => {
-            const next = { ...t };
-            delete next[data.agentId];
-            return next;
-          });
+          setTyping((t) => { const n = { ...t }; delete n[data.agentId]; return n; });
           break;
       }
     };
@@ -120,7 +79,7 @@ export default function WarRoom() {
   function handleInputChange(value: string) {
     setInput(value);
     const lastAt = value.lastIndexOf("@");
-    if (lastAt >= 0 && lastAt === value.length - 1 - (value.length - 1 - lastAt)) {
+    if (lastAt >= 0) {
       const afterAt = value.slice(lastAt + 1);
       if (!afterAt.includes(" ")) {
         setShowMentions(true);
@@ -140,8 +99,7 @@ export default function WarRoom() {
   }
 
   const filteredAgents = agents.filter((a) =>
-    a.name.toLowerCase().startsWith(mentionFilter) ||
-    a.id.toLowerCase().startsWith(mentionFilter)
+    a.name.toLowerCase().startsWith(mentionFilter) || a.id.toLowerCase().startsWith(mentionFilter)
   );
 
   return (
@@ -171,8 +129,9 @@ export default function WarRoom() {
       {/* Messages */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto space-y-3 rounded-2xl border border-border-subtle bg-surface-card/50 p-4">
         {messages.length === 0 && Object.keys(typing).length === 0 && (
-          <div className="flex h-full items-center justify-center">
+          <div className="flex h-full items-center justify-center flex-col gap-2">
             <p className="text-neutral-600 text-sm">No messages yet. Start the conversation.</p>
+            <p className="text-neutral-700 text-xs font-mono">/debate @bbot @rhormozi rounds=2 Your topic here</p>
           </div>
         )}
 
@@ -180,46 +139,22 @@ export default function WarRoom() {
           <MessageBubble key={msg.id} message={msg} />
         ))}
 
-        {/* Streaming agent responses */}
-        {Object.entries(streaming).map(([agentId, text]) => {
-          const agent = agents.find((a) => a.id === agentId);
-          if (!agent || !text) return null;
-          return (
-            <div key={`stream-${agentId}`} className="flex gap-3 items-start">
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-surface-elevated text-sm ring-2 ring-emerald-500/30">
-                {agent.emoji}
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="mb-1 text-xs font-medium text-emerald-400">{agent.name}</p>
-                <div className="rounded-2xl rounded-tl-md bg-surface-elevated px-4 py-3 text-sm text-neutral-200">
-                  <div className="prose prose-invert prose-sm max-w-none prose-p:my-1 prose-headings:text-neutral-100 prose-strong:text-gold prose-code:bg-surface-base prose-code:rounded prose-code:px-1">
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown>
-                  </div>
-                  <span className="inline-block h-4 w-1 animate-pulse bg-emerald-400 rounded-full ml-0.5" />
-                </div>
+        {/* Typing indicators */}
+        {Object.entries(typing).map(([agentId, info]) => (
+          <div key={`typing-${agentId}`} className="flex gap-3 items-start">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-surface-elevated text-sm ring-2 ring-neutral-600 animate-pulse">
+              {info.emoji}
+            </div>
+            <div className="rounded-2xl rounded-tl-md bg-surface-elevated px-4 py-3">
+              <p className="text-xs text-neutral-500">{info.name} is thinking…</p>
+              <div className="mt-1 flex gap-1">
+                <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-neutral-500" style={{ animationDelay: "0ms" }} />
+                <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-neutral-500" style={{ animationDelay: "150ms" }} />
+                <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-neutral-500" style={{ animationDelay: "300ms" }} />
               </div>
             </div>
-          );
-        })}
-
-        {/* Typing indicators for agents that haven't started streaming yet */}
-        {Object.entries(typing)
-          .filter(([agentId]) => !streaming[agentId])
-          .map(([agentId, info]) => (
-            <div key={`typing-${agentId}`} className="flex gap-3 items-start">
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-surface-elevated text-sm ring-2 ring-neutral-600 animate-pulse">
-                {info.emoji}
-              </div>
-              <div className="rounded-2xl rounded-tl-md bg-surface-elevated px-4 py-3">
-                <p className="text-xs text-neutral-500">{info.name} is thinking…</p>
-                <div className="mt-1 flex gap-1">
-                  <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-neutral-500" style={{ animationDelay: "0ms" }} />
-                  <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-neutral-500" style={{ animationDelay: "150ms" }} />
-                  <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-neutral-500" style={{ animationDelay: "300ms" }} />
-                </div>
-              </div>
-            </div>
-          ))}
+          </div>
+        ))}
       </div>
 
       {/* Input */}
@@ -246,7 +181,7 @@ export default function WarRoom() {
             value={input}
             onChange={(e) => handleInputChange(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
-            placeholder="Message the war room… use @bbot or @rhormozi to target"
+            placeholder="/debate @bbot @rhormozi rounds=2 topic  ·  or just @bbot message"
             className="flex-1 bg-transparent text-sm text-neutral-200 outline-none placeholder:text-neutral-600"
             disabled={!connected}
           />
@@ -265,37 +200,94 @@ export default function WarRoom() {
   );
 }
 
+// ── Message rendering ──────────────────────────────────────────────
+
 function MessageBubble({ message }: { message: WarRoomMessage }) {
-  const isUser = message.sender.type === "user";
+  if (message.sender.type === "system") return <SystemMessage message={message} />;
+  if (message.sender.type === "user") return <UserMessage message={message} />;
+  return <AgentMessage message={message} />;
+}
 
-  if (isUser) {
-    return (
-      <div className="flex justify-end">
-        <div className="max-w-[70%]">
-          <div className="rounded-2xl rounded-br-md border border-gold/20 bg-gold/10 px-4 py-3 text-sm text-neutral-200">
-            {message.content}
-          </div>
-          <p className="mt-1 text-right text-[10px] text-neutral-600">
-            {new Date(message.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-            {message.targets && message.targets.length > 0 && (
-              <span className="ml-1.5 text-neutral-700">→ {message.targets.join(", ")}</span>
-            )}
-          </p>
+function SystemMessage({ message }: { message: WarRoomMessage }) {
+  const isDebateStart = message.content.startsWith("⚔️ Debate started");
+  const isDebateEnd = message.content === "⚔️ Debate complete.";
+  const isRound = message.content.startsWith("— Round");
+  const isSynthesis = message.content.startsWith("— Synthesis");
+
+  return (
+    <div className={`flex justify-center py-1 ${isDebateStart || isDebateEnd ? "py-2" : ""}`}>
+      <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium ${
+        isDebateStart
+          ? "bg-amber-500/10 text-amber-400 border border-amber-500/20"
+          : isDebateEnd
+          ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
+          : isSynthesis
+          ? "bg-purple-500/10 text-purple-400 border border-purple-500/20"
+          : isRound
+          ? "bg-blue-500/10 text-blue-400 border border-blue-500/20"
+          : "bg-neutral-800 text-neutral-500 border border-neutral-700"
+      }`}>
+        {message.content}
+      </span>
+    </div>
+  );
+}
+
+function UserMessage({ message }: { message: WarRoomMessage }) {
+  const isDebate = message.meta?.mode === "debate";
+  return (
+    <div className="flex justify-end">
+      <div className="max-w-[70%]">
+        <div className={`rounded-2xl rounded-br-md px-4 py-3 text-sm text-neutral-200 ${
+          isDebate
+            ? "border border-amber-500/30 bg-amber-500/10"
+            : "border border-gold/20 bg-gold/10"
+        }`}>
+          {message.content}
         </div>
+        <p className="mt-1 text-right text-[10px] text-neutral-600">
+          {new Date(message.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+          {message.targets && message.targets.length > 0 && (
+            <span className="ml-1.5 text-neutral-700">→ {message.targets.join(", ")}</span>
+          )}
+          {isDebate && message.meta?.maxRounds && (
+            <span className="ml-1.5 text-amber-600">{message.meta.maxRounds}R debate</span>
+          )}
+        </p>
       </div>
-    );
-  }
+    </div>
+  );
+}
 
+function AgentMessage({ message }: { message: WarRoomMessage }) {
   const sender = message.sender as { type: "agent"; id: string; name: string; emoji: string };
+  const isSynthesis = message.meta?.synthesis;
+  const round = message.round;
+
   return (
     <div className="flex gap-3 items-start">
-      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-surface-elevated text-sm ring-2 ring-emerald-500/30">
+      <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-surface-elevated text-sm ring-2 ${
+        isSynthesis ? "ring-purple-500/50" : "ring-emerald-500/30"
+      }`}>
         {sender.emoji}
       </div>
       <div className="min-w-0 max-w-[75%]">
-        <p className="mb-1 text-xs font-medium text-emerald-400">{sender.name}</p>
-        <div className="rounded-2xl rounded-tl-md bg-surface-elevated px-4 py-3 text-sm text-neutral-200">
-          <div className="prose prose-invert prose-sm max-w-none prose-p:my-1 prose-headings:text-neutral-100 prose-strong:text-gold prose-code:bg-surface-base prose-code:rounded prose-code:px-1">
+        <div className="mb-1 flex items-center gap-2">
+          <span className={`text-xs font-medium ${isSynthesis ? "text-purple-400" : "text-emerald-400"}`}>
+            {sender.name}
+          </span>
+          {round != null && round >= 0 && (
+            <span className="text-[10px] text-neutral-600 font-mono">
+              {isSynthesis ? "synthesis" : `R${round}`}
+            </span>
+          )}
+        </div>
+        <div className={`rounded-2xl rounded-tl-md px-4 py-3 text-sm text-neutral-200 ${
+          isSynthesis
+            ? "bg-purple-500/10 border border-purple-500/20"
+            : "bg-surface-elevated"
+        }`}>
+          <div className="prose prose-invert prose-sm max-w-none prose-p:my-1 prose-headings:text-neutral-100 prose-strong:text-gold prose-code:bg-surface-base prose-code:rounded prose-code:px-1 prose-li:my-0.5">
             <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown>
           </div>
         </div>

@@ -10,10 +10,21 @@ const LOG_FILE = path.join(OPENCLAW_HOME, "warroom.jsonl");
 export interface WarRoomMessage {
   id: string;
   ts: string;
-  sender: { type: "user"; name: string } | { type: "agent"; id: string; name: string; emoji: string };
+  sender:
+    | { type: "user"; name: string }
+    | { type: "agent"; id: string; name: string; emoji: string }
+    | { type: "system" };
   content: string;
   targets?: string[];
   replyTo?: string;
+  threadId?: string;
+  round?: number;
+  meta?: {
+    mode?: "one-shot" | "debate";
+    maxRounds?: number;
+    targets?: string[];
+    synthesis?: boolean;
+  };
 }
 
 export async function appendMessage(msg: WarRoomMessage) {
