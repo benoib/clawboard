@@ -48,3 +48,19 @@ export interface Skill {
   scope: "workspace" | "global" | "bundled";
   agentId?: string;
 }
+
+export interface WarRoomMessage {
+  id: string;
+  ts: string;
+  sender: { type: "user"; name: string } | { type: "agent"; id: string; name: string; emoji: string };
+  content: string;
+  targets?: string[];
+  replyTo?: string;
+}
+
+export interface WarRoomAgent {
+  id: string;
+  name: string;
+  emoji: string;
+  aliases: string[];
+}

@@ -2,6 +2,7 @@ import { Routes, Route, Navigate } from "react-router-dom";
 import Layout from "@/components/Layout";
 import OrgChart from "@/pages/OrgChart";
 import Workspaces from "@/pages/Workspaces";
+import WarRoom from "@/pages/WarRoom";
 
 export default function App() {
   return (
@@ -11,6 +12,7 @@ export default function App() {
         <Route path="/org" element={<OrgChart />} />
         <Route path="/workspaces" element={<Workspaces />} />
         <Route path="/workspaces/:agentId" element={<Workspaces />} />
+        <Route path="/warroom" element={<WarRoom />} />
       </Route>
     </Routes>
   );

@@ -3,6 +3,7 @@ import { NavLink, Outlet } from "react-router-dom";
 const tabs = [
   { to: "/org", label: "Org Chart", icon: "🏛" },
   { to: "/workspaces", label: "Workspaces", icon: "📁" },
+  { to: "/warroom", label: "War Room", icon: "⚔️" },
 ];
 
 export default function Layout() {
