@@ -54,7 +54,13 @@ async function sendToAgent(agentId: string, content: string, userMsgId: string) 
     if (code === 0 && stdout.trim()) {
       try {
         const result = JSON.parse(stdout.trim());
-        responseText = result.text || result.message || result.content || stdout.trim();
+        const payloads = result.result?.payloads;
+        if (Array.isArray(payloads) && payloads.length > 0) {
+          responseText = payloads.map((p: { text?: string }) => p.text).filter(Boolean).join("\n");
+        }
+        if (!responseText) {
+          responseText = result.text || result.message || result.content || stdout.trim();
+        }
       } catch {
         responseText = stdout.trim();
       }
