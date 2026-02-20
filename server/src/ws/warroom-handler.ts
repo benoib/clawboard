@@ -9,8 +9,7 @@ import {
   type WarRoomMessage,
 } from "../lib/warroom.js";
 
-const NVM_NODE = `${process.env.HOME}/.nvm/versions/node/v22.22.0/bin/node`;
-const OPENCLAW_BIN = "/usr/local/bin/openclaw";
+const SHELL = "/bin/bash";
 
 const clients = new Set<WsWebSocket>();
 
@@ -30,12 +29,9 @@ async function sendToAgent(agentId: string, content: string, userMsgId: string) 
   broadcast({ type: "typing", agentId, name: agent.name, emoji: agent.emoji });
 
   const sessionId = `warroom-${agentId}`;
-  const args = ["agent", "--message", content, "--json", "--session-id", sessionId, "--agent", agentId];
-
-  const home = process.env.HOME || "/home/benoit";
-  const env: Record<string, string | undefined> = { ...process.env, HOME: home, PATH: `${home}/.nvm/versions/node/v22.22.0/bin:${process.env.PATH}` };
-  delete env.OPENCLAW_HOME;
-  const proc = spawn(NVM_NODE, [OPENCLAW_BIN, ...args], { env, timeout: 120_000 });
+  const escaped = content.replace(/'/g, "'\\''");
+  const cmd = `export HOME=/home/benoit && unset OPENCLAW_HOME && export NVM_DIR="$HOME/.nvm" && . "$NVM_DIR/nvm.sh" && nvm use 22 --silent && openclaw agent --message '${escaped}' --json --session-id '${sessionId}' --agent '${agentId}'`;
+  const proc = spawn(SHELL, ["-c", cmd], { timeout: 120_000 });
 
   let stdout = "";
   let stderr = "";
