@@ -33,15 +33,9 @@ async function sendToAgent(agentId: string, content: string, userMsgId: string) 
   const args = ["agent", "--message", content, "--json", "--session-id", sessionId, "--agent", agentId];
 
   const home = process.env.HOME || "/home/benoit";
-  const proc = spawn(NVM_NODE, [OPENCLAW_BIN, ...args], {
-    env: {
-      ...process.env,
-      HOME: home,
-      OPENCLAW_HOME: process.env.OPENCLAW_HOME || `${home}/.openclaw`,
-      PATH: `${home}/.nvm/versions/node/v22.22.0/bin:${process.env.PATH}`,
-    },
-    timeout: 120_000,
-  });
+  const env: Record<string, string | undefined> = { ...process.env, HOME: home, PATH: `${home}/.nvm/versions/node/v22.22.0/bin:${process.env.PATH}` };
+  delete env.OPENCLAW_HOME;
+  const proc = spawn(NVM_NODE, [OPENCLAW_BIN, ...args], { env, timeout: 120_000 });
 
   let stdout = "";
   let stderr = "";
