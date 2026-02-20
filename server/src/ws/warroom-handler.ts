@@ -41,7 +41,6 @@ async function sendToAgent(agentId: string, content: string, userMsgId: string) 
 
   proc.stderr.on("data", (chunk: Buffer) => {
     stderr += chunk.toString();
-    console.log(`[warroom] ${agentId} stderr:`, chunk.toString().trim());
   });
 
   proc.on("close", async (code) => {
