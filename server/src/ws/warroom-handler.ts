@@ -1,6 +1,6 @@
 import { WebSocketServer, WebSocket as WsWebSocket } from "ws";
 import type { Server } from "http";
-import GatewayWebSocket from "ws";
+import { spawn } from "child_process";
 import {
   appendMessage,
   loadHistory,
@@ -9,13 +9,8 @@ import {
   type WarRoomMessage,
 } from "../lib/warroom.js";
 
-const GATEWAY_PORT = process.env.GATEWAY_PORT || "18789";
-const GATEWAY_TOKEN = process.env.GATEWAY_TOKEN || "";
-
-function gwUrl() {
-  const base = `ws://127.0.0.1:${GATEWAY_PORT}`;
-  return GATEWAY_TOKEN ? `${base}?token=${GATEWAY_TOKEN}` : base;
-}
+const NVM_NODE = `${process.env.HOME}/.nvm/versions/node/v22.22.0/bin/node`;
+const OPENCLAW_BIN = "/usr/local/bin/openclaw";
 
 const clients = new Set<WsWebSocket>();
 
@@ -26,88 +21,65 @@ function broadcast(data: unknown) {
   }
 }
 
-async function sendToAgent(
-  agentId: string,
-  content: string,
-  userMsgId: string,
-) {
+async function sendToAgent(agentId: string, content: string, userMsgId: string) {
   const aliases = await getAgentAliases();
   const agent = aliases.find((a) => a.id === agentId);
   if (!agent) return;
 
   const replyId = crypto.randomUUID();
+  broadcast({ type: "typing", agentId, name: agent.name, emoji: agent.emoji });
 
-  broadcast({
-    type: "typing",
-    agentId,
-    name: agent.name,
-    emoji: agent.emoji,
+  const args = ["agent", "--message", content, "--json"];
+  if (agentId !== "main") args.push("--agent", agentId);
+
+  const proc = spawn(NVM_NODE, [OPENCLAW_BIN, ...args], {
+    env: { ...process.env, PATH: `${process.env.HOME}/.nvm/versions/node/v22.22.0/bin:${process.env.PATH}` },
+    timeout: 120_000,
   });
 
-  const gw = new GatewayWebSocket(gwUrl());
-  const reqId = crypto.randomUUID();
-  let fullContent = "";
+  let stdout = "";
+  let stderr = "";
 
-  const timeout = setTimeout(() => {
-    gw.close();
-    broadcast({ type: "error", agentId, error: "Gateway timeout" });
-  }, 120_000);
-
-  gw.on("open", () => {
-    gw.send(JSON.stringify({
-      type: "req",
-      id: reqId,
-      method: "chat.send",
-      params: { agentId, message: content },
-    }));
+  proc.stdout.on("data", (chunk: Buffer) => {
+    stdout += chunk.toString();
   });
 
-  gw.on("message", (raw) => {
-    try {
-      const msg = JSON.parse(raw.toString());
+  proc.stderr.on("data", (chunk: Buffer) => {
+    stderr += chunk.toString();
+  });
 
-      if (msg.type === "event" && msg.event === "chat") {
-        const payload = msg.payload;
-        if (payload?.type === "text-delta" || payload?.type === "content_block_delta") {
-          const delta = payload.delta?.text || payload.text || "";
-          if (delta) {
-            fullContent += delta;
-            broadcast({ type: "chunk", agentId, msgId: replyId, content: delta });
-          }
-        }
-        if (payload?.type === "response" || payload?.type === "message_stop") {
-          if (payload.text && !fullContent) fullContent = payload.text;
-        }
+  proc.on("close", async (code) => {
+    let responseText = "";
+
+    if (code === 0 && stdout.trim()) {
+      try {
+        const result = JSON.parse(stdout.trim());
+        responseText = result.text || result.message || result.content || stdout.trim();
+      } catch {
+        responseText = stdout.trim();
       }
+    } else {
+      responseText = stderr.trim() || stdout.trim() || `Agent returned exit code ${code}`;
+    }
 
-      if (msg.type === "res" && msg.id === reqId) {
-        clearTimeout(timeout);
+    if (responseText) {
+      const agentMsg: WarRoomMessage = {
+        id: replyId,
+        ts: new Date().toISOString(),
+        sender: { type: "agent", id: agentId, name: agent.name, emoji: agent.emoji },
+        content: responseText,
+        replyTo: userMsgId,
+      };
+      await appendMessage(agentMsg);
+      broadcast({ type: "message", message: agentMsg });
+    }
 
-        if (msg.ok && msg.payload?.text && !fullContent) {
-          fullContent = msg.payload.text;
-        }
-
-        if (fullContent) {
-          const agentMsg: WarRoomMessage = {
-            id: replyId,
-            ts: new Date().toISOString(),
-            sender: { type: "agent", id: agentId, name: agent.name, emoji: agent.emoji },
-            content: fullContent,
-            replyTo: userMsgId,
-          };
-          appendMessage(agentMsg);
-          broadcast({ type: "message", message: agentMsg });
-        }
-
-        broadcast({ type: "done", agentId });
-        gw.close();
-      }
-    } catch { /* ignore parse errors */ }
+    broadcast({ type: "done", agentId });
   });
 
-  gw.on("error", () => {
-    clearTimeout(timeout);
-    broadcast({ type: "error", agentId, error: "Gateway connection failed" });
+  proc.on("error", (err) => {
+    broadcast({ type: "error", agentId, error: err.message });
+    broadcast({ type: "done", agentId });
   });
 }
 
