@@ -9,7 +9,8 @@ import {
   type WarRoomMessage,
 } from "../lib/warroom.js";
 
-const SHELL = "/bin/bash";
+const NODE22 = "/home/benoit/.nvm/versions/node/v22.22.0/bin/node";
+const OPENCLAW = "/usr/local/bin/openclaw";
 
 const clients = new Set<WsWebSocket>();
 
@@ -29,11 +30,12 @@ async function sendToAgent(agentId: string, content: string, userMsgId: string) 
   broadcast({ type: "typing", agentId, name: agent.name, emoji: agent.emoji });
 
   const sessionId = `warroom-${agentId}`;
-  const escaped = content.replace(/'/g, "'\\''");
-  const node22 = "/home/benoit/.nvm/versions/node/v22.22.0/bin/node";
-  const clawBin = "/usr/local/bin/openclaw";
-  const cmd = `env -i HOME=/home/benoit PATH=/home/benoit/.nvm/versions/node/v22.22.0/bin:/usr/local/bin:/usr/bin:/bin ${node22} ${clawBin} agent --message '${escaped}' --json --session-id '${sessionId}' --agent '${agentId}'`;
-  const proc = spawn(SHELL, ["-c", cmd], { timeout: 120_000 });
+  const args = [OPENCLAW, "agent", "--message", content, "--json", "--session-id", sessionId, "--agent", agentId];
+  const cleanEnv: Record<string, string> = {
+    HOME: "/home/benoit",
+    PATH: "/home/benoit/.nvm/versions/node/v22.22.0/bin:/usr/local/bin:/usr/bin:/bin",
+  };
+  const proc = spawn(NODE22, args, { env: cleanEnv, timeout: 120_000 });
 
   let stdout = "";
   let stderr = "";
